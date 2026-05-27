@@ -1,0 +1,5 @@
+homepage: "https://www.activecampaign.com"
+documentation: "https://github.com/newnorthdigital/activecampaign-web-tag/blob/main/README.md"
+versions:
+  - sha: REPLACE_WITH_COMMIT_SHA
+    changeNotes: "Initial release."
