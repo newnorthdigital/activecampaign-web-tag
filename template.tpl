@@ -57,7 +57,7 @@ ___TEMPLATE_PARAMETERS___
       }
     ],
     "simpleValueType": true,
-    "help": "Select the action this tag should perform. For a standard multi-page website only \u0027Initialisation\u0027 is needed (fire on All Pages \u2014 it records page views automatically). \u0027Identify visitor\u0027 and \u0027Track event\u0027 are optional event-level tags. \u0027Page view\u0027 is only needed for single-page apps where routes change without a full page reload."
+    "help": "Select the action this tag should perform. For a standard multi-page website only \u0027Initialisation\u0027 is needed (fire on All Pages — it records page views automatically). \u0027Identify visitor\u0027 and \u0027Track event\u0027 are optional event-level tags. \u0027Page view\u0027 is only needed for single-page apps where routes change without a full page reload."
   },
   {
     "type": "TEXT",
@@ -69,7 +69,7 @@ ___TEMPLATE_PARAMETERS___
         "type": "NON_EMPTY"
       }
     ],
-    "help": "Your ActiveCampaign account ID (a numeric value). Find it under Settings \u003e Tracking \u003e Site Tracking in your ActiveCampaign account. For a standard multi-page website, fire this Initialisation tag on All Pages \u2014 page views are recorded automatically. For single-page apps, also add a Page view (SPA route change) tag on each route-change event.",
+    "help": "Your ActiveCampaign account ID (a numeric value). Find it under Settings \u003e Tracking \u003e Site Tracking in your ActiveCampaign account. For a standard multi-page website, fire this Initialisation tag on All Pages — page views are recorded automatically. For single-page apps, also add a Page view (SPA route change) tag on each route-change event.",
     "enablingConditions": [
       {
         "paramName": "actionType",
@@ -416,7 +416,7 @@ ___WEB_PERMISSIONS___
                   },
                   {
                     "type": 8,
-                    "boolean": false
+                    "boolean": true
                   },
                   {
                     "type": 8,
