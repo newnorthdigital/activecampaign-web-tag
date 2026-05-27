@@ -57,7 +57,7 @@ ___TEMPLATE_PARAMETERS___
       }
     ],
     "simpleValueType": true,
-    "help": "Select the action this tag should perform. Use 'Initialisation' to load the ActiveCampaign tracker (fire once on all pages), then use the other actions on specific triggers."
+    "help": "Select the action this tag should perform. Use \u0027Initialisation\u0027 to load the ActiveCampaign tracker (fire once on all pages), then use the other actions on specific triggers."
   },
   {
     "type": "TEXT",
@@ -69,7 +69,7 @@ ___TEMPLATE_PARAMETERS___
         "type": "NON_EMPTY"
       }
     ],
-    "help": "Your ActiveCampaign account ID (a numeric value). Find it under Settings > Tracking > Site Tracking in your ActiveCampaign account.",
+    "help": "Your ActiveCampaign account ID (a numeric value). Find it under Settings \u003e Tracking \u003e Site Tracking in your ActiveCampaign account.",
     "enablingConditions": [
       {
         "paramName": "actionType",
@@ -124,7 +124,7 @@ ___TEMPLATE_PARAMETERS___
         "type": "NON_EMPTY"
       }
     ],
-    "help": "Category of the event (e.g., 'ecommerce', 'engagement').",
+    "help": "Category of the event (e.g., \u0027ecommerce\u0027, \u0027engagement\u0027).",
     "enablingConditions": [
       {
         "paramName": "actionType",
@@ -143,7 +143,7 @@ ___TEMPLATE_PARAMETERS___
         "type": "NON_EMPTY"
       }
     ],
-    "help": "Action of the event (e.g., 'add_to_cart', 'purchase', 'newsletter_signup').",
+    "help": "Action of the event (e.g., \u0027add_to_cart\u0027, \u0027purchase\u0027, \u0027newsletter_signup\u0027).",
     "enablingConditions": [
       {
         "paramName": "actionType",
@@ -607,4 +607,5 @@ scenarios:
 ___NOTES___
 
 Created on 2026-05-27 by New North Digital (newnorth.digital).
+
 
