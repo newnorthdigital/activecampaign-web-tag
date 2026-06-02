@@ -203,7 +203,10 @@ ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 const log = require('logToConsole');
 const injectScript = require('injectScript');
 const setInWindow = require('setInWindow');
+const copyFromWindow = require('copyFromWindow');
+const createArgumentsQueue = require('createArgumentsQueue');
 const callInWindow = require('callInWindow');
+const getType = require('getType');
 const makeString = require('makeString');
 
 const DIFFUSER_URL = 'https://diffuser-cdn.app-us1.com/diffuser/diffuser.js';
@@ -220,98 +223,69 @@ const debugLog = (msg) => {
 
 debugLog('Starting with action type: ' + actionType);
 
-const handleInit = () => {
-  const accountId = data.accountId;
-  if (!accountId) {
-    debugLog('Error: Account ID is required for initialisation');
-    data.gtmOnFailure();
-    return;
-  }
-
-  callInWindow(VGO_ALIAS, 'setAccount', makeString(accountId));
-  if (data.trackByDefault) {
-    callInWindow(VGO_ALIAS, 'setTrackByDefault', true);
-  } else {
-    callInWindow(VGO_ALIAS, 'setTrackByDefault', false);
-  }
-  callInWindow(VGO_ALIAS, 'process');
-
-  debugLog('Initialised with account ID: ' + accountId);
-  data.gtmOnSuccess();
-};
-
-const handleIdentify = () => {
-  const email = data.email;
-  if (!email) {
-    debugLog('Error: Visitor email is required for identify');
-    data.gtmOnFailure();
-    return;
-  }
-
-  callInWindow(VGO_ALIAS, 'setEmail', email);
-  callInWindow(VGO_ALIAS, 'process');
-
-  debugLog('Identified visitor');
-  data.gtmOnSuccess();
-};
-
-const handleTrack = () => {
-  const eventCategory = data.eventCategory;
-  const eventAction = data.eventAction;
-
-  if (!eventCategory || !eventAction) {
-    debugLog('Error: Event category and action are required for track');
-    data.gtmOnFailure();
-    return;
-  }
-
-  const eventOpts = {
-    category: eventCategory,
-    action: eventAction
-  };
-  if (data.eventLabel) {
-    eventOpts.label = data.eventLabel;
-  }
-  if (data.eventValue) {
-    eventOpts.value = data.eventValue;
-  }
-
-  callInWindow(VGO_ALIAS, 'process', 'trackevent', eventOpts);
-
-  debugLog('Tracked event: ' + eventCategory + ' / ' + eventAction);
-  data.gtmOnSuccess();
-};
-
-const handlePageView = () => {
-  callInWindow(VGO_ALIAS, 'process');
-  debugLog('Tracked page view');
-  data.gtmOnSuccess();
-};
-
-const onSuccess = () => {
-  debugLog('Diffuser SDK ready');
-
-  if (actionType === 'init') {
-    handleInit();
-  } else if (actionType === 'identify') {
-    handleIdentify();
-  } else if (actionType === 'track') {
-    handleTrack();
-  } else if (actionType === 'page') {
-    handlePageView();
-  } else {
-    debugLog('Unknown action type: ' + actionType);
-    data.gtmOnFailure();
-  }
-};
-
-const onFailure = () => {
-  debugLog('Diffuser SDK failed to load');
-  data.gtmOnFailure();
-};
-
+// Establish the ActiveCampaign command queue exactly as the native embed snippet does, BEFORE
+// diffuser.js loads. The SDK constructs `new Diffuser(window.visitorGlobalObjectAlias)` on load
+// and throws "Embed code is not configured" if window[alias] is undefined at that moment, so the
+// queue-pushing stub must already exist. The SDK does not replace window[alias] (its instance
+// lives at window.visitorGlobalObject), so commands are always pushed onto window.vgo.q and the
+// SDK drains them on connect().
 setInWindow('visitorGlobalObjectAlias', VGO_ALIAS, true);
-injectScript(DIFFUSER_URL, onSuccess, onFailure, 'ac-diffuser');
+if (getType(copyFromWindow(VGO_ALIAS)) !== 'function') {
+  createArgumentsQueue(VGO_ALIAS, VGO_ALIAS + '.q');
+}
+
+let queued = true;
+
+if (actionType === 'init') {
+  if (!data.accountId) {
+    debugLog('Error: Account ID is required for initialisation');
+    queued = false;
+  } else {
+    callInWindow(VGO_ALIAS, 'setAccount', makeString(data.accountId));
+    callInWindow(VGO_ALIAS, 'setTrackByDefault', data.trackByDefault !== false);
+    callInWindow(VGO_ALIAS, 'process');
+    debugLog('Queued init with account ID: ' + data.accountId);
+  }
+} else if (actionType === 'identify') {
+  if (!data.email) {
+    debugLog('Error: Visitor email is required for identify');
+    queued = false;
+  } else {
+    callInWindow(VGO_ALIAS, 'setEmail', data.email);
+    callInWindow(VGO_ALIAS, 'process');
+    debugLog('Queued identify visitor');
+  }
+} else if (actionType === 'track') {
+  if (!data.eventCategory || !data.eventAction) {
+    debugLog('Error: Event category and action are required for track');
+    queued = false;
+  } else {
+    const eventOpts = {
+      category: data.eventCategory,
+      action: data.eventAction
+    };
+    if (data.eventLabel) {
+      eventOpts.label = data.eventLabel;
+    }
+    if (data.eventValue) {
+      eventOpts.value = data.eventValue;
+    }
+    callInWindow(VGO_ALIAS, 'process', 'trackevent', eventOpts);
+    debugLog('Queued event: ' + data.eventCategory + ' / ' + data.eventAction);
+  }
+} else if (actionType === 'page') {
+  callInWindow(VGO_ALIAS, 'process');
+  debugLog('Queued page view');
+} else {
+  debugLog('Unknown action type: ' + actionType);
+  queued = false;
+}
+
+if (!queued) {
+  data.gtmOnFailure();
+} else {
+  injectScript(DIFFUSER_URL, data.gtmOnSuccess, data.gtmOnFailure, 'ac-diffuser');
+}
 
 
 ___WEB_PERMISSIONS___
@@ -377,15 +351,54 @@ ___WEB_PERMISSIONS___
                   },
                   {
                     "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  }
+                ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "vgo.q"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
                     "boolean": false
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
-                  },
-                  {
-                    "type": 8,
-                    "boolean": true
                   }
                 ]
               },
@@ -488,6 +501,29 @@ scenarios:
     assertApi('injectScript').wasCalled();
     assertApi('setInWindow').wasCalled();
     assertApi('callInWindow').wasCalled();
+    assertApi('gtmOnSuccess').wasCalled();
+- name: Init - creates vgo queue before injecting diffuser
+  code: |-
+    const getType = require('getType');
+    const copyFromWindow = require('copyFromWindow');
+
+    const mockData = {
+      actionType: 'init',
+      accountId: '255304459',
+      trackByDefault: true,
+      debug: false
+    };
+
+    let vgoDefinedAtInject = false;
+    mock('injectScript', function(url, onSuccess, onFailure, cacheToken) {
+      vgoDefinedAtInject = getType(copyFromWindow('vgo')) === 'function';
+      onSuccess();
+    });
+
+    runCode(mockData);
+
+    assertApi('createArgumentsQueue').wasCalled();
+    assertThat(vgoDefinedAtInject).isEqualTo(true);
     assertApi('gtmOnSuccess').wasCalled();
 - name: Init - fails without account ID
   code: |-
