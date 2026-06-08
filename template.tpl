@@ -13,7 +13,7 @@ ___INFO___
   "id": "cvt_temp_public_id",
   "version": 1,
   "securityGroups": [],
-  "displayName": "ActiveCampaign Site Tracking",
+  "displayName": "ActiveCampaign Site Tracking by New North Digital",
   "categories": [
     "EMAIL_MARKETING",
     "MARKETING"
