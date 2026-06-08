@@ -1,5 +1,7 @@
 homepage: "https://www.activecampaign.com"
 documentation: "https://github.com/newnorthdigital/activecampaign-web-tag/blob/main/README.md"
 versions:
+  - sha: 548f555152acd5e3b49e1aa6a6504728c2d7be22
+    changeNotes: "Rename displayName to 'ActiveCampaign Site Tracking by New North Digital' per Gallery third-party naming rule (tag name by company)."
   - sha: 2f241136ad83eacf89fee000610e8160eab7dc8b
     changeNotes: "Initial release."
