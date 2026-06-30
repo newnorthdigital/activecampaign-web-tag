@@ -2,7 +2,7 @@
 
 A Google Tag Manager web tag template for [ActiveCampaign](https://www.activecampaign.com) Site Tracking. Loads the `diffuser.js` SDK, identifies visitors by email, tracks custom events, and records page views — all without Custom HTML.
 
-Built and maintained by [New North Digital](https://newnorth.digital?utm_source=github&utm_medium=gtm-template&utm_campaign=activecampaign-web-tag).
+Created and maintained by [Freek Kampen](https://freekkampen.com) at [New North Digital](https://newnorth.digital?utm_source=github&utm_medium=gtm-template&utm_campaign=activecampaign-web-tag).
 
 ## Features
 
@@ -89,7 +89,7 @@ If your site is a single-page app, disable "Track page views by default" on the 
 
 ## Author
 
-[New North Digital](https://newnorth.digital?utm_source=github&utm_medium=gtm-template&utm_campaign=activecampaign-web-tag) — analytics implementation and tracking architecture for ecommerce.
+Created and maintained by [Freek Kampen](https://freekkampen.com) at [New North Digital](https://newnorth.digital?utm_source=github&utm_medium=gtm-template&utm_campaign=activecampaign-web-tag) — analytics implementation and tracking architecture for ecommerce.
 
 ## License
 
