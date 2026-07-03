@@ -183,6 +183,33 @@ ___TEMPLATE_PARAMETERS___
   },
   {
     "type": "GROUP",
+    "name": "consentGroup",
+    "displayName": "Consent",
+    "groupStyle": "ZIPPY_OPEN",
+    "subParams": [
+      {
+        "type": "SELECT",
+        "name": "consentMode",
+        "displayName": "Consent handling",
+        "macrosInSelect": false,
+        "selectItems": [
+          {
+            "value": "auto",
+            "displayValue": "Follow GTM Consent Mode (analytics_storage)"
+          },
+          {
+            "value": "off",
+            "displayValue": "Fire immediately (I gate consent elsewhere)"
+          }
+        ],
+        "simpleValueType": true,
+        "defaultValue": "auto",
+        "help": "\"Follow GTM Consent Mode\" (recommended) fires only once analytics_storage is granted, and waits for consent if it is not yet given. \"Fire immediately\" runs right away, for when you gate consent with GTM's tag-level consent settings or a consent trigger. Consent that is never configured counts as granted, so sites without Consent Mode are unaffected."
+      }
+    ]
+  },
+  {
+    "type": "GROUP",
     "name": "debugGroup",
     "displayName": "Debugging",
     "groupStyle": "ZIPPY_CLOSED",
@@ -208,6 +235,8 @@ const createArgumentsQueue = require('createArgumentsQueue');
 const callInWindow = require('callInWindow');
 const getType = require('getType');
 const makeString = require('makeString');
+const isConsentGranted = require('isConsentGranted');
+const addConsentListener = require('addConsentListener');
 
 const DIFFUSER_URL = 'https://diffuser-cdn.app-us1.com/diffuser/diffuser.js';
 const VGO_ALIAS = 'vgo';
@@ -223,68 +252,97 @@ const debugLog = (msg) => {
 
 debugLog('Starting with action type: ' + actionType);
 
-// Establish the ActiveCampaign command queue exactly as the native embed snippet does, BEFORE
-// diffuser.js loads. The SDK constructs `new Diffuser(window.visitorGlobalObjectAlias)` on load
-// and throws "Embed code is not configured" if window[alias] is undefined at that moment, so the
-// queue-pushing stub must already exist. The SDK does not replace window[alias] (its instance
-// lives at window.visitorGlobalObject), so commands are always pushed onto window.vgo.q and the
-// SDK drains them on connect().
-setInWindow('visitorGlobalObjectAlias', VGO_ALIAS, true);
-if (getType(copyFromWindow(VGO_ALIAS)) !== 'function') {
-  createArgumentsQueue(VGO_ALIAS, VGO_ALIAS + '.q');
-}
-
-let queued = true;
-
-if (actionType === 'init') {
-  if (!data.accountId) {
-    debugLog('Error: Account ID is required for initialisation');
-    queued = false;
-  } else {
-    callInWindow(VGO_ALIAS, 'setAccount', makeString(data.accountId));
-    callInWindow(VGO_ALIAS, 'setTrackByDefault', data.trackByDefault !== false);
-    callInWindow(VGO_ALIAS, 'process');
-    debugLog('Queued init with account ID: ' + data.accountId);
+// Queue the ActiveCampaign command and load diffuser.js. Guarded so it runs at
+// most once, even if the consent listener fires more than once.
+let hasFired = false;
+const fire = () => {
+  if (hasFired) {
+    return;
   }
-} else if (actionType === 'identify') {
-  if (!data.email) {
-    debugLog('Error: Visitor email is required for identify');
-    queued = false;
-  } else {
-    callInWindow(VGO_ALIAS, 'setEmail', data.email);
-    callInWindow(VGO_ALIAS, 'process');
-    debugLog('Queued identify visitor');
+  hasFired = true;
+
+  // Establish the ActiveCampaign command queue exactly as the native embed snippet does, BEFORE
+  // diffuser.js loads. The SDK constructs `new Diffuser(window.visitorGlobalObjectAlias)` on load
+  // and throws "Embed code is not configured" if window[alias] is undefined at that moment, so the
+  // queue-pushing stub must already exist. The SDK does not replace window[alias] (its instance
+  // lives at window.visitorGlobalObject), so commands are always pushed onto window.vgo.q and the
+  // SDK drains them on connect().
+  setInWindow('visitorGlobalObjectAlias', VGO_ALIAS, true);
+  if (getType(copyFromWindow(VGO_ALIAS)) !== 'function') {
+    createArgumentsQueue(VGO_ALIAS, VGO_ALIAS + '.q');
   }
-} else if (actionType === 'track') {
-  if (!data.eventCategory || !data.eventAction) {
-    debugLog('Error: Event category and action are required for track');
-    queued = false;
-  } else {
-    const eventOpts = {
-      category: data.eventCategory,
-      action: data.eventAction
-    };
-    if (data.eventLabel) {
-      eventOpts.label = data.eventLabel;
+
+  let queued = true;
+
+  if (actionType === 'init') {
+    if (!data.accountId) {
+      debugLog('Error: Account ID is required for initialisation');
+      queued = false;
+    } else {
+      callInWindow(VGO_ALIAS, 'setAccount', makeString(data.accountId));
+      callInWindow(VGO_ALIAS, 'setTrackByDefault', data.trackByDefault !== false);
+      callInWindow(VGO_ALIAS, 'process');
+      debugLog('Queued init with account ID: ' + data.accountId);
     }
-    if (data.eventValue) {
-      eventOpts.value = data.eventValue;
+  } else if (actionType === 'identify') {
+    if (!data.email) {
+      debugLog('Error: Visitor email is required for identify');
+      queued = false;
+    } else {
+      callInWindow(VGO_ALIAS, 'setEmail', data.email);
+      callInWindow(VGO_ALIAS, 'process');
+      debugLog('Queued identify visitor');
     }
-    callInWindow(VGO_ALIAS, 'process', 'trackevent', eventOpts);
-    debugLog('Queued event: ' + data.eventCategory + ' / ' + data.eventAction);
+  } else if (actionType === 'track') {
+    if (!data.eventCategory || !data.eventAction) {
+      debugLog('Error: Event category and action are required for track');
+      queued = false;
+    } else {
+      const eventOpts = {
+        category: data.eventCategory,
+        action: data.eventAction
+      };
+      if (data.eventLabel) {
+        eventOpts.label = data.eventLabel;
+      }
+      if (data.eventValue) {
+        eventOpts.value = data.eventValue;
+      }
+      callInWindow(VGO_ALIAS, 'process', 'trackevent', eventOpts);
+      debugLog('Queued event: ' + data.eventCategory + ' / ' + data.eventAction);
+    }
+  } else if (actionType === 'page') {
+    callInWindow(VGO_ALIAS, 'process');
+    debugLog('Queued page view');
+  } else {
+    debugLog('Unknown action type: ' + actionType);
+    queued = false;
   }
-} else if (actionType === 'page') {
-  callInWindow(VGO_ALIAS, 'process');
-  debugLog('Queued page view');
-} else {
-  debugLog('Unknown action type: ' + actionType);
-  queued = false;
-}
 
-if (!queued) {
-  data.gtmOnFailure();
+  if (!queued) {
+    data.gtmOnFailure();
+  } else {
+    injectScript(DIFFUSER_URL, data.gtmOnSuccess, data.gtmOnFailure, 'ac-diffuser');
+  }
+};
+
+// Consent gate. ActiveCampaign Site Tracking stores cookies to recognise visitors
+// across page views, which requires analytics_storage. In the default "auto" mode
+// the tag follows GTM Consent Mode: it fires once analytics_storage is granted and
+// waits (via a consent listener) if it is not yet. Choose "Fire immediately" to gate
+// consent at the container level instead. Note: isConsentGranted returns true when
+// consent is not configured, so sites without Consent Mode keep firing.
+const consentMode = data.consentMode || 'auto';
+
+if (consentMode === 'off' || isConsentGranted('analytics_storage')) {
+  fire();
 } else {
-  injectScript(DIFFUSER_URL, data.gtmOnSuccess, data.gtmOnFailure, 'ac-diffuser');
+  debugLog('Waiting for analytics_storage consent');
+  addConsentListener('analytics_storage', (consentType, granted) => {
+    if (granted) {
+      fire();
+    }
+  });
 }
 
 
@@ -476,6 +534,58 @@ ___WEB_PERMISSIONS___
       "isEditedByUser": true
     },
     "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "access_consent"
+      },
+      "param": [
+        {
+          "key": "consentTypes",
+          "value": {
+            "type": 2,
+            "listItem": [
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "consentType"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "analytics_storage"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
+    },
+    "isRequired": true
   }
 ]
 
@@ -489,6 +599,7 @@ scenarios:
       actionType: 'init',
       accountId: '255304459',
       trackByDefault: true,
+      consentMode: 'off',
       debug: false
     };
 
@@ -511,6 +622,7 @@ scenarios:
       actionType: 'init',
       accountId: '255304459',
       trackByDefault: true,
+      consentMode: 'off',
       debug: false
     };
 
@@ -528,6 +640,7 @@ scenarios:
 - name: Init - fails without account ID
   code: |-
     const mockData = {
+      consentMode: 'off',
       actionType: 'init',
       accountId: '',
       trackByDefault: true,
@@ -546,6 +659,7 @@ scenarios:
     const mockData = {
       actionType: 'identify',
       email: 'jane@example.com',
+      consentMode: 'off',
       debug: false
     };
 
@@ -560,6 +674,7 @@ scenarios:
 - name: Identify - fails without email
   code: |-
     const mockData = {
+      consentMode: 'off',
       actionType: 'identify',
       email: '',
       debug: false
@@ -580,6 +695,7 @@ scenarios:
       eventAction: 'purchase',
       eventLabel: 'Order 1234',
       eventValue: '99.95',
+      consentMode: 'off',
       debug: false
     };
 
@@ -594,6 +710,7 @@ scenarios:
 - name: Track - fails without category and action
   code: |-
     const mockData = {
+      consentMode: 'off',
       actionType: 'track',
       eventCategory: '',
       eventAction: '',
@@ -611,6 +728,7 @@ scenarios:
   code: |-
     const mockData = {
       actionType: 'page',
+      consentMode: 'off',
       debug: false
     };
 
@@ -628,6 +746,7 @@ scenarios:
       actionType: 'init',
       accountId: '255304459',
       trackByDefault: true,
+      consentMode: 'off',
       debug: false
     };
 
@@ -638,6 +757,90 @@ scenarios:
     runCode(mockData);
 
     assertApi('gtmOnFailure').wasCalled();
+- name: Consent - auto mode fires when analytics_storage is already granted
+  code: |-
+    const mockData = {
+      actionType: 'init',
+      accountId: '255304459',
+      trackByDefault: true,
+      consentMode: 'auto',
+      debug: false
+    };
+
+    mock('isConsentGranted', function(type) { return true; });
+    mock('injectScript', function(url, onSuccess, onFailure, cacheToken) {
+      onSuccess();
+    });
+
+    runCode(mockData);
+
+    assertApi('injectScript').wasCalled();
+    assertApi('addConsentListener').wasNotCalled();
+    assertApi('gtmOnSuccess').wasCalled();
+- name: Consent - auto mode waits when analytics_storage is denied
+  code: |-
+    const mockData = {
+      actionType: 'init',
+      accountId: '255304459',
+      trackByDefault: true,
+      consentMode: 'auto',
+      debug: false
+    };
+
+    mock('isConsentGranted', function(type) { return false; });
+    mock('addConsentListener', function(type, callback) {});
+    mock('injectScript', function(url, onSuccess, onFailure, cacheToken) {
+      onSuccess();
+    });
+
+    runCode(mockData);
+
+    assertApi('addConsentListener').wasCalled();
+    assertApi('injectScript').wasNotCalled();
+- name: Consent - fires once after analytics_storage is granted via the listener
+  code: |-
+    const mockData = {
+      actionType: 'init',
+      accountId: '255304459',
+      trackByDefault: true,
+      consentMode: 'auto',
+      debug: false
+    };
+
+    mock('isConsentGranted', function(type) { return false; });
+    mock('addConsentListener', function(type, callback) {
+      callback(type, true);
+    });
+    let injectCount = 0;
+    mock('injectScript', function(url, onSuccess, onFailure, cacheToken) {
+      injectCount++;
+      onSuccess();
+    });
+
+    runCode(mockData);
+
+    assertThat(injectCount).isEqualTo(1);
+    assertApi('gtmOnSuccess').wasCalled();
+- name: Consent - fire immediately skips the consent check
+  code: |-
+    const mockData = {
+      actionType: 'init',
+      accountId: '255304459',
+      trackByDefault: true,
+      consentMode: 'off',
+      debug: false
+    };
+
+    mock('isConsentGranted', function(type) { return false; });
+    mock('injectScript', function(url, onSuccess, onFailure, cacheToken) {
+      onSuccess();
+    });
+
+    runCode(mockData);
+
+    assertApi('injectScript').wasCalled();
+    assertApi('addConsentListener').wasNotCalled();
+    assertApi('gtmOnSuccess').wasCalled();
 
 
 ___NOTES___

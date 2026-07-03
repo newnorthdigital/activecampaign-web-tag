@@ -10,6 +10,7 @@ Created and maintained by [Freek Kampen](https://freekkampen.com) at [New North 
 - **Identify visitor** — links the current browser session to an email address so subsequent events attach to the correct ActiveCampaign contact.
 - **Track event** — fires custom events with category, action, label, and value (the ActiveCampaign Event API shape).
 - **Page view** — manual page-view trigger for SPA route changes.
+- Built-in Consent Mode gate: follows GTM Consent Mode by default, firing only once `analytics_storage` is granted and waiting for consent otherwise.
 - Native sandboxed JS — no `eval`, no Custom HTML, no third-party dependencies.
 - Optional console debug logging gated behind a checkbox.
 
@@ -63,6 +64,15 @@ Fire on specific business events:
 
 If your site is a single-page app, disable "Track page views by default" on the init tag and fire a separate Page view tag on each route change.
 
+## Consent
+
+The tag has a built-in Consent Mode gate, set by the **Consent handling** field:
+
+- **Follow GTM Consent Mode (`analytics_storage`)** (default) — the tag fires only once `analytics_storage` is granted. If consent is not yet given, it waits with a consent listener and fires as soon as the visitor grants it. Consent that is never configured counts as granted, so sites without Consent Mode are unaffected.
+- **Fire immediately (I gate consent elsewhere)** — the tag runs right away, for when you gate consent with GTM's tag-level consent settings or a consent trigger.
+
+ActiveCampaign Site Tracking stores cookies to recognise visitors across page views, which is why `analytics_storage` is the gating consent type.
+
 ## Field Reference
 
 | Field | Action type | Required | Description |
@@ -74,12 +84,14 @@ If your site is a single-page app, disable "Track page views by default" on the 
 | Event action | Track | yes | e.g., `purchase` |
 | Event label | Track | no | Free-text label |
 | Event value | Track | no | Numeric value |
+| Consent handling | All | no | Follow GTM Consent Mode (`analytics_storage`) or fire immediately |
 | Log to console for debugging | All | no | Verbose console output |
 
 ## Permissions
 
 - Inject script: `https://diffuser-cdn.app-us1.com/diffuser/diffuser.js`
 - Access globals: `vgo` (write + execute), `visitorGlobalObjectAlias` (write)
+- Access consent: `analytics_storage` (read)
 - Logging: enabled in debug environment only
 
 ## Resources
