@@ -1,6 +1,8 @@
 homepage: "https://www.activecampaign.com"
 documentation: "https://github.com/newnorthdigital/activecampaign-web-tag/blob/main/README.md"
 versions:
+  - sha: dd6a15384130070bf990f6545b4b5bd141c8b889
+    changeNotes: 'Add built-in GTM Consent Mode gate: fires only once consent is granted, with a Fire-immediately option.'
   - sha: ca031a44c7b862ada7d39d0599e2a6ead178338f
     changeNotes: 'NND-badge icon and shortened display name (by New North).'
   - sha: 548f555152acd5e3b49e1aa6a6504728c2d7be22
